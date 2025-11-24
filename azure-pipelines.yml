@@ -1,3 +1,5 @@
+# CI/CD + Security Scan (GRYPE) for Spring Boot Microservice
+
 trigger:
 - main
 
@@ -6,15 +8,15 @@ resources:
 
 variables:
   dockerRegistryServiceConnection: 'container-planificacion'
+
   imageRepository: 'servicio-planificacion'
+
   containerRegistry: 'containerplanificacion.azurecr.io'
-  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+
+  dockerfilePath: '$(Build.SourcesDirectory)/dockerfile'
+
   tag: '$(Build.BuildId)'
   vmImageName: 'ubuntu-latest'
-  imageFullName: '$(containerRegistry)/$(imageRepository)'
-  # variables para capturar códigos de salida de grype (inicializadas a 0)
-  GRYPE_SOURCE_EXIT: '0'
-  GRYPE_IMAGE_EXIT: '0'
 
 stages:
 
@@ -26,8 +28,10 @@ stages:
       vmImage: $(vmImageName)
     steps:
 
+    # 1 --- Checkout source
     - checkout: self
 
+    # 2 --- Build Spring Boot JAR
     - task: Maven@3
       displayName: "Build Spring Boot JAR"
       inputs:
@@ -41,24 +45,20 @@ stages:
         mavenAuthenticateFeed: false
         effectivePomSkip: true
 
+    # 3 --- Install Grype
     - script: |
         echo "Installing Grype..."
-        # Se necesita sudo para escribir en /usr/local/bin en ubuntu-latest
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
         grype --version
       displayName: "Install Grype"
 
+    # 4 --- Scan project directory
     - script: |
-        echo "Scanning project source (grype)..."
-        set +e
+        echo "Scanning project source..."
         grype dir:.
-        GRYPE_SOURCE_EXIT=$?
-        echo "grype source exit code: $GRYPE_SOURCE_EXIT"
-        # exportar variable al pipeline para usarla en condiciones
-        echo "##vso[task.setvariable variable=GRYPE_SOURCE_EXIT]$GRYPE_SOURCE_EXIT"
-        set -e
       displayName: "Grype Scan - Source"
 
+    # 5 --- Build Docker image locally
     - task: Docker@2
       displayName: "Build Local Docker Image"
       inputs:
@@ -69,32 +69,18 @@ stages:
         tags: |
           $(tag)
 
-    # Asegurarse del tag completo localmente (por si Docker@2 no creó exactamente el tag con el registry)
+    # 6 --- Scan the local image with Grype
     - script: |
-        echo "Ensuring full image tag locally: $(imageFullName):$(tag)"
+        echo "Scanning Docker image locally..."
         docker images
-        # tag local (silent si ya existe)
-        if docker image inspect $(imageFullName):$(tag) >/dev/null 2>&1; then
-          echo "Full-tag already exists"
-        else
-          docker tag $(imageRepository):$(tag) $(imageFullName):$(tag) || echo "Tag might already exist or build used full name"
-        fi
-        docker images | grep $(imageRepository) || true
-      displayName: "Ensure image is tagged with registry host"
-
-    - script: |
-        echo "Scanning Docker image locally with grype: $(imageFullName):$(tag)"
-        set +e
-        grype $(imageFullName):$(tag)
-        GRYPE_IMAGE_EXIT=$?
-        echo "grype image exit code: $GRYPE_IMAGE_EXIT"
-        echo "##vso[task.setvariable variable=GRYPE_IMAGE_EXIT]$GRYPE_IMAGE_EXIT"
-        set -e
+        echo "Scanning: $(containerRegistry)/$(imageRepository):$(tag)"
+        grype $(containerRegistry)/$(imageRepository):$(tag)
       displayName: "Grype Scan - Docker Image"
 
+    # 7 --- Push image only if security scan passes
     - task: Docker@2
-      displayName: "Push Image (only if both scans passed)"
-      condition: and(succeeded(), eq(variables['GRYPE_SOURCE_EXIT'], '0'), eq(variables['GRYPE_IMAGE_EXIT'], '0'))
+      displayName: "Push Image (only if safe)"
+      condition: succeeded()
       inputs:
         command: push
         repository: $(imageRepository)
