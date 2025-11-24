@@ -12,9 +12,9 @@ resources:
 variables:
   dockerRegistryServiceConnection: 'container-planificacion'
 
-  imageRepository: 'planificacion-service'
+  imageRepository: 'servicio-planificacion'
 
-  containerRegistry: 'backendconteiner.azurecr.io'
+  containerRegistry: 'containerplanificacion.azurecr.io'
 
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
 
