@@ -1,0 +1,92 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  dockerRegistryServiceConnection: 'container-planificacion'
+
+  imageRepository: 'planificacion-service'
+
+  containerRegistry: 'backendconteiner.azurecr.io'
+
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+
+  tag: '$(Build.BuildId)'
+  vmImageName: 'ubuntu-latest'
+
+stages:
+
+- stage: Build
+  displayName: Build, Scan & Push
+  jobs:
+  - job: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+
+    # 1 --- Checkout source
+    - checkout: self
+
+    # 2 --- Build Spring Boot JAR
+    - task: Maven@3
+      displayName: "Build Spring Boot JAR"
+      inputs:
+        mavenPomFile: "pom.xml"
+        goals: "package"
+        publishJUnitResults: false
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.17'
+        mavenOptions: "-Xmx3072m"
+        testResultsFiles: "**/surefire-reports/*.xml"
+        mavenAuthenticateFeed: false
+        effectivePomSkip: true
+
+    # 3 --- Install Grype
+    - script: |
+        echo "Installing Grype..."
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        grype --version
+      displayName: "Install Grype"
+
+    # 4 --- Scan project directory
+    - script: |
+        echo "Scanning project source..."
+        grype dir:.
+      displayName: "Grype Scan - Source"
+
+    # 5 --- Build Docker image locally
+    - task: Docker@2
+      displayName: "Build Local Docker Image"
+      inputs:
+        command: build
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+    # 6 --- Scan the local image with Grype
+    - script: |
+        echo "Scanning Docker image locally..."
+        docker images
+        echo "Scanning: $(containerRegistry)/$(imageRepository):$(tag)"
+        grype $(containerRegistry)/$(imageRepository):$(tag)
+      displayName: "Grype Scan - Docker Image"
+
+    # 7 --- Push image only if security scan passes
+    - task: Docker@2
+      displayName: "Push Image (only if safe)"
+      condition: succeeded()
+      inputs:
+        command: push
+        repository: $(imageRepository)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
