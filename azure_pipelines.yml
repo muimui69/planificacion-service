@@ -1,0 +1,163 @@
+# PIPELINE AZURE - MICROSERVICIO PLANIFICACION - SPRING BOOT
+trigger:
+  branches:
+    include:
+      - main
+      - master
+  paths:
+    include:
+      - /
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # DOCKER CONFIGURATION
+  dockerHubServiceConnection: 'docker_moiso'
+  dockerHubImageRepository: 'moisodev/servicio-planificacion'
+  containerRegistryServiceConnection: 'Container Images Diplomado M3'
+  containerRegistryImageRepository: 'diplomado/microservices-planificacion'
+
+  # BUILD CONFIGURATION
+  dockerfilePath: '$(Build.SourcesDirectory)/dockerfile'
+  buildContext: '$(Build.SourcesDirectory)'
+  tag: '$(Build.BuildId)'
+
+  # AZURE CONFIGURATION
+  azureServiceConnection: 'Service Update Images (APP)'
+  appServiceName: 'apps-m3-microservices-planificacion'
+  resourceGroupName: 'PROYECTO-FINAL'
+
+stages:
+  # STAGE 1: BUILD Y PUSH
+  - stage: DockerBuild
+    displayName: 'Build y Push Docker'
+    jobs:
+      - job: BuildDocker
+        displayName: 'Build Docker Image'
+        steps:
+
+          - task: Docker@2
+            displayName: 'Build y Push a Docker Hub'
+            inputs:
+              command: buildAndPush
+              repository: $(dockerHubImageRepository)
+              dockerfile: $(dockerfilePath)
+              buildContext: $(buildContext)
+              containerRegistry: $(dockerHubServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+  # STAGE 2: DEPLOY Y VERIFICAR KEY VAULT
+  - stage: DeployToAzure
+    displayName: 'Deploy y Verificar Key Vault'
+    dependsOn: DockerBuild
+    condition: succeeded()
+    jobs:
+      - job: DeployAndVerify
+        displayName: 'Deploy y Verificar'
+        steps:
+
+          - task: AzureCLI@2
+            displayName: 'Actualizar imagen Docker'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -e
+                
+                APP_SERVICE_NAME="$(appServiceName)"
+                RESOURCE_GROUP="$(resourceGroupName)"
+                IMAGE_URL="docker.io/$(dockerHubImageRepository):latest"
+                
+                echo "=== ACTUALIZANDO IMAGEN DOCKER ==="
+                echo "App Service: $APP_SERVICE_NAME"
+                echo "Imagen: $IMAGE_URL"
+                
+                # Solo actualizar imagen Docker
+                az webapp config container set \
+                  --name $APP_SERVICE_NAME \
+                  --resource-group $RESOURCE_GROUP \
+                  --docker-custom-image-name $IMAGE_URL \
+                  --docker-registry-server-url "https://index.docker.io" \
+                  --output none
+                
+                echo "Imagen actualizada correctamente"
+
+          - task: AzureCLI@2
+            displayName: 'Verificar configuracion Key Vault'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -e
+                
+                APP_SERVICE_NAME="$(appServiceName)"
+                RESOURCE_GROUP="$(resourceGroupName)"
+                
+                echo "=== VERIFICANDO CONFIGURACION KEY VAULT ==="
+                
+                # Verificar Managed Identity
+                echo "1. Verificando Managed Identity..."
+                IDENTITY=$(az webapp identity show --name $APP_SERVICE_NAME --resource-group $RESOURCE_GROUP --query principalId --output tsv 2>/dev/null || echo "")
+                
+                if [ -z "$IDENTITY" ]; then
+                    echo "ERROR: Managed Identity no esta habilitada"
+                    echo "Habilitando Managed Identity..."
+                    az webapp identity assign --name $APP_SERVICE_NAME --resource-group $RESOURCE_GROUP
+                    IDENTITY=$(az webapp identity show --name $APP_SERVICE_NAME --resource-group $RESOURCE_GROUP --query principalId --output tsv)
+                    echo "Managed Identity habilitada: $IDENTITY"
+                else
+                    echo "Managed Identity OK: $IDENTITY"
+                fi
+                
+                # Verificar variables Key Vault existentes
+                echo ""
+                echo "2. Verificando variables de Key Vault existentes..."
+                KEY_VAULT_VARS=$(az webapp config appsettings list \
+                  --name $APP_SERVICE_NAME \
+                  --resource-group $RESOURCE_GROUP \
+                  --query "[?contains(value, '@Microsoft.KeyVault')].{name:name, value:value}" \
+                  --output json)
+                
+                if [ "$KEY_VAULT_VARS" = "[]" ]; then
+                    echo "ATENCION: No hay variables de Key Vault configuradas"
+                    echo "Configurando variables de Key Vault basicas..."
+                
+                    # Aquí configuras las referencias si no existen
+                    az webapp config appsettings set \
+                      --name $APP_SERVICE_NAME \
+                      --resource-group $RESOURCE_GROUP \
+                      --settings \
+                        "db_password=@Microsoft.KeyVault(SecretUri=https://tu-keyvault.vault.azure.net/secrets/db-password/)" \
+                        "jwt_secret=@Microsoft.KeyVault(SecretUri=https://tu-keyvault.vault.azure.net/secrets/jwt-secret/)" \
+                      --output none
+                
+                    echo "Variables de Key Vault configuradas"
+                else
+                    echo "Variables de Key Vault existentes:"
+                    echo "$KEY_VAULT_VARS" | jq -r '.[] | "  - \(.name): \(.value)"'
+                fi
+
+          - task: AzureCLI@2
+            displayName: 'Reiniciar App Service'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                APP_SERVICE_NAME="$(appServiceName)"
+                RESOURCE_GROUP="$(resourceGroupName)"
+                
+                echo "=== REINICIANDO APP SERVICE ==="
+                az webapp restart --name $APP_SERVICE_NAME --resource-group $RESOURCE_GROUP --output none
+                echo "App Service reiniciado"
+                
+                echo ""
+                echo "=== DEPLOY COMPLETADO ==="
+                echo "URL: https://apps-m3-microservices-planificacion-hqa4d2bja2cxa4fe.canadacentral-01.azurewebsites.net"
+                echo "Imagen: docker.io/$(dockerHubImageRepository):latest"
+                echo "Key Vault: Configurado y verificado"

@@ -5,7 +5,7 @@
 *.class
 *.jar
 .DS_Store
-mvnw
-mvnw.cmd
+# mvnw
+# mvnw.cmd
 .git/
 .gitignore

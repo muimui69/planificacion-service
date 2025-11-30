@@ -1,12 +1,12 @@
 package com.planificacion.servicio_planificacion.model;
 
-import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Entity
-@Table(name = "planificaciones")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,13 +14,9 @@ import java.time.LocalDate;
 @Builder
 public class Planificacion {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private Long productoId;
     private Integer cantidad;
     private LocalDate fechaObjetivo;
-
-    private String estado; // PENDIENTE, APROBADA, CANCELADA
+    private String estado;
 }
