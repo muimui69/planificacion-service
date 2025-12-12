@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mss-planificacion
+  namespace: diplomado-m3
+spec:
+  selector:
+    matchLabels:
+      app: planificacion
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: planificacion
+    spec:
+      containers:
+        - name: planificacion
+          image: moisodev/servicio-planificacion:1.0

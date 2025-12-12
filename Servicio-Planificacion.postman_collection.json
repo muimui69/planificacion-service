@@ -1,0 +1,207 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+		"name": "Servicio Planificacion",
+		"description": "Colección de endpoints para el servicio de planificación",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Listar todas las planificaciones",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/planificacion",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion"
+					]
+				},
+				"description": "Obtiene la lista de todas las planificaciones"
+			},
+			"response": []
+		},
+		{
+			"name": "Crear planificación",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"fecha\": \"2025-12-15\",\n    \"descripcion\": \"Planificación de ejemplo\",\n    \"usuario\": \"Juan Pérez\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/planificacion",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion"
+					]
+				},
+				"description": "Crea una nueva planificación"
+			},
+			"response": []
+		},
+		{
+			"name": "Obtener planificación por ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/planificacion/:id",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "1",
+							"description": "ID de la planificación"
+						}
+					]
+				},
+				"description": "Obtiene una planificación específica por su ID"
+			},
+			"response": []
+		},
+		{
+			"name": "Buscar planificaciones por fecha",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/planificacion/fecha/:fecha",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion",
+						"fecha",
+						":fecha"
+					],
+					"variable": [
+						{
+							"key": "fecha",
+							"value": "2025-12-15",
+							"description": "Fecha en formato YYYY-MM-DD"
+						}
+					]
+				},
+				"description": "Busca planificaciones por fecha específica"
+			},
+			"response": []
+		},
+		{
+			"name": "Eliminar planificación",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/planificacion/:id",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "1",
+							"description": "ID de la planificación a eliminar"
+						}
+					]
+				},
+				"description": "Elimina una planificación por su ID"
+			},
+			"response": []
+		},
+		{
+			"name": "Obtener variables de entorno",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwt_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/planificacion/env-vars",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"planificacion",
+						"env-vars"
+					]
+				},
+				"description": "Obtiene las variables de entorno configuradas en el servicio"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8081",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
